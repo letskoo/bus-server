@@ -1,12 +1,12 @@
 {
   "name": "bus",
   "version": "1.0.0",
-  "main": "dist/main.js",
+  "main": "src/main.ts",
   "scripts": {
-    "build": "npx tsc",
     "start": "node dist/main.js",
-    "start:dev": "cross-env NODE_ENV=development ts-node src/main.ts",
-    "start:prod": "node dist/main.js"
+    "start:dev": "ts-node src/main.ts",
+    "start:prod": "ts-node src/main.ts",
+    "build": "echo skip build"
   },
   "type": "commonjs",
   "dependencies": {
@@ -20,9 +20,8 @@
     "class-validator": "^0.14.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "typescript": "^5.5.4",
     "ts-node": "^10.9.2",
-    "prisma": "^6.19.2",
-    "cross-env": "^7.0.3"
+    "typescript": "^5.5.4",
+    "prisma": "^6.19.2"
   }
 }
