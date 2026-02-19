@@ -1,0 +1,397 @@
+﻿=== TIME ===
+
+2026년 2월 12일 목요일 오후 12:28:57
+
+
+=== PWD ===
+C:\projects\bus
+=== NODE/NPM ===
+v24.13.0
+11.6.2
+=== PACKAGE.JSON (scripts) ===
+{
+  "name": "bus",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "start:dev": "cross-env NODE_ENV=development ts-node src/main.ts",
+    "start:prod": "cross-env NODE_ENV=production node dist/main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.11.30",
+    "cross-env": "^7.0.3",
+    "prisma": "^6.19.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.4",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.4",
+    "@nestjs/platform-express": "^11.0.4",
+    "@prisma/client": "^6.19.2",
+    "axios": "^1.7.9",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  }
+}
+
+=== PRISMA ===
+Prisma schema loaded from prisma\schema.prisma
+prisma                  : 6.19.2
+@prisma/client          : 6.19.2
+Computed binaryTarget   : windows
+Operating System        : win32
+Architecture            : x64
+Node.js                 : v24.13.0
+TypeScript              : 5.9.3
+Query Engine (Node-API) : libquery-engine c2990dca591cba766e3b7ef5d9e8a84796e47ab7 (at node_modules\@prisma\engines\query_engine-windows.dll.node)
+PSL                     : @prisma/prisma-schema-wasm 7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7
+Schema Engine           : schema-engine-cli c2990dca591cba766e3b7ef5d9e8a84796e47ab7 (at node_modules\@prisma\engines\schema-engine-windows.exe)
+Default Engines Hash    : c2990dca591cba766e3b7ef5d9e8a84796e47ab7
+Studio                  : 0.511.0
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * =========================
+ * Organization (?숈썝)
+ * =========================
+ */
+model Organization {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+
+  buses    Bus[]
+  routes   Route[]
+  students Student[]
+  trips    Trip[]
+}
+
+/**
+ * =========================
+ * Bus (李⑤웾)
+ * =========================
+ */
+model Bus {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  name           String
+  plateNumber    String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  routes       Route[]
+  trips        Trip[]
+}
+
+/**
+ * =========================
+ * Route (?몄꽑/肄붿뒪)
+ * =========================
+ */
+model Route {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  busId          Int?
+  name           String
+  alertBeforeCnt Int      @default(2)
+  createdAt      DateTime @default(now())
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  bus            Bus?            @relation(fields: [busId], references: [id])
+  stops          Stop[]
+  boardingLogs   BoardingLog[] // ??異붽???以?  driverLocation DriverLocation?
+  trips          Trip[]
+}
+
+/**
+ * =========================
+ * Stop (?뺣쪟??
+ * =========================
+ */
+model Stop {
+  id        Int      @id @default(autoincrement())
+  routeId   Int
+  name      String
+  address   String?
+  latitude  Float
+  longitude Float
+  orderNo   Int
+  createdAt DateTime @default(now())
+
+  route        Route         @relation(fields: [routeId], references: [id])
+  students     Student[]
+  boardingLogs BoardingLog[] // ??異붽???以?  trips        Trip[]
+  stopEvents   StopEvent[]
+}
+
+/**
+ * =========================
+ * Student (?먯깮)
+ * =========================
+ */
+model Student {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  stopId         Int?
+  name           String
+  parentPhone    String
+  createdAt      DateTime @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  stop         Stop?         @relation(fields: [stopId], references: [id])
+  boardings    BoardingLog[]
+}
+
+/**
+ * =========================
+ * BoardingLog (?묒듅 湲곕줉)
+ * =========================
+ */
+model BoardingLog {
+  id        Int            @id @default(autoincrement())
+  studentId Int
+  routeId   Int
+  stopId    Int
+  status    BoardingStatus
+  createdAt DateTime       @default(now())
+
+  student Student @relation(fields: [studentId], references: [id])
+  route   Route   @relation(fields: [routeId], references: [id])
+  stop    Stop    @relation(fields: [stopId], references: [id])
+}
+
+enum BoardingStatus {
+  BOARDED
+  NOT_BOARDED
+  SKIPPED
+}
+
+/**
+ * =========================
+ * NotificationLog (?뚮┝ 湲곕줉)
+ * =========================
+ */
+model NotificationLog {
+  id        Int              @id @default(autoincrement())
+  phone     String
+  message   String
+  type      NotificationType
+  createdAt DateTime         @default(now())
+}
+
+enum NotificationType {
+  BEFORE_STOP
+  ARRIVED
+  MANUAL
+}
+
+model DriverLocation {
+  id        Int      @id @default(autoincrement())
+  routeId   Int      @unique
+  latitude  Float
+  longitude Float
+  updatedAt DateTime @updatedAt
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+}
+
+enum TripType {
+  PICKUP
+  DROPOFF
+}
+
+enum TripStatus {
+  RUNNING
+  ENDED
+}
+
+enum StopEventType {
+  ARRIVE
+  DEPART
+}
+
+model Trip {
+  id             Int        @id @default(autoincrement())
+  organizationId Int
+  routeId        Int
+  busId          Int?
+  type           TripType
+  status         TripStatus @default(RUNNING)
+  startedAt      DateTime   @default(now())
+  endedAt        DateTime?
+  currentStopId  Int?
+  createdAt      DateTime   @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  route        Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  bus          Bus?         @relation(fields: [busId], references: [id])
+  currentStop  Stop?        @relation(fields: [currentStopId], references: [id])
+
+  stopEvents StopEvent[]
+}
+
+model StopEvent {
+  id        Int           @id @default(autoincrement())
+  tripId    Int
+  stopId    Int
+  type      StopEventType
+  createdAt DateTime      @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stop Stop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, stopId, type])
+  @@index([tripId, createdAt])
+}
+=== TREE (src, prisma) ===
+폴더 PATH의 목록입니다.
+볼륨 일련 번호는 7694-2C06입니다.
+C:\PROJECTS\BUS\SRC
+|   app.controller.ts
+|   app.module.ts
+|   main.ts
+|   
++---arrival
+|   |   arrival.controller.ts
+|   |   arrival.module.ts
+|   |   arrival.service.ts
+|   |   
+|   \---dto
+|           arrival.dto.ts
+|           
++---boarding
+|   |   boarding.controller.ts
+|   |   boarding.module.ts
+|   |   boarding.service.ts
+|   |   
+|   \---dto
+|           create-boarding-log.dto.ts
+|           
++---common
+|   +---filters
+|   |       global-exception.filter.ts
+|   |       
+|   +---interceptors
+|   |       logging.interceptor.ts
+|   |       
+|   \---utils
+|           geo.util.ts
+|           
++---config
+|       env.ts
+|       
++---driver
+|   |   driver.controller.ts
+|   |   driver.module.ts
+|   |   driver.service.ts
+|   |   
+|   \---dto
+|           update-location.dto.ts
+|           
++---health
+|       health.controller.ts
+|       
++---notification
+|   |   notification.module.ts
+|   |   notification.service.ts
+|   |   notification.types.ts
+|   |   
+|   \---providers
+|           alimtalk.provider.ts
+|           
++---organization
+|   |   organization.controller.ts
+|   |   organization.module.ts
+|   |   organization.service.ts
+|   |   
+|   \---dto
+|           create-organization.dto.ts
+|           update-organization.dto.ts
+|           
++---prisma
+|       prisma.module.ts
+|       prisma.service.ts
+|       
++---route
+|   |   route.controller.ts
+|   |   route.module.ts
+|   |   route.service.ts
+|   |   
+|   \---dto
+|           create-route.dto.ts
+|           update-route.dto.ts
+|           
++---share
+|       share.controller.ts
+|       share.module.ts
+|       share.service.ts
+|       
++---stop
+|   |   stop.controller.ts
+|   |   stop.module.ts
+|   |   stop.service.ts
+|   |   
+|   \---dto
+|           create-stop.dto.ts
+|           update-stop.dto.ts
+|           
++---student
+|   |   student.controller.ts
+|   |   student.module.ts
+|   |   student.service.ts
+|   |   
+|   \---dto
+|           create-student.dto.ts
+|           update-student.dto.ts
+|           
+\---trip
+    |   trip-automation.service.ts
+    |   trip.controller.ts
+    |   trip.module.ts
+    |   trip.service.ts
+    |   
+    \---dto
+            start-trip.dto.ts
+            
+폴더 PATH의 목록입니다.
+볼륨 일련 번호는 7694-2C06입니다.
+C:\PROJECTS\BUS\PRISMA
+|   schema.prisma
+|   
+\---migrations
+    |   migration_lock.toml
+    |   
+    +---20260131054001_init
+    |       migration.sql
+    |       
+    +---20260131054654_core_models
+    |       migration.sql
+    |       
+    +---20260131061745_driver_location
+    |       migration.sql
+    |       
+    \---20260131063209_trip_stop_events
+            migration.sql
+            
+=== GIT ===
