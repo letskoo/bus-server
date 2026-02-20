@@ -24,6 +24,7 @@ model Organization {
   shareTokens     ShareToken[]
   driverConsents  DriverConsent[]
   chargeRequests  ChargeRequest[]
+  temporaryBoardings TemporaryBoarding[]
 }
 
 model Bus {
@@ -81,6 +82,7 @@ model Route {
   driverLocation DriverLocation?
   trips          Trip[]
   shareTokens    ShareToken[]
+  temporaryBoardings TemporaryBoarding[]
 
   @@index([organizationId])
   @@index([busId])
@@ -102,6 +104,7 @@ model Stop {
   boardingLogs BoardingLog[]
   trips        Trip[]
   stopEvents   StopEvent[]
+  temporaryBoardings TemporaryBoarding[]
 
   @@index([routeId, orderNo])
 }
@@ -117,6 +120,7 @@ model Student {
   organization Organization  @relation(fields: [organizationId], references: [id])
   stop         Stop?         @relation(fields: [stopId], references: [id])
   boardings    BoardingLog[]
+  temporaryBoardings TemporaryBoarding[]
 
   @@index([organizationId])
   @@index([stopId])
@@ -309,4 +313,42 @@ model ChargeRequest {
 
   @@index([organizationId, createdAt])
   @@index([status, createdAt])
+}
+
+enum TemporaryBoardingStatus {
+  ACTIVE
+  CANCEL
+}
+
+enum TemporaryCreatedBy {
+  PARENT
+  DIRECTOR
+}
+
+model TemporaryBoarding {
+  id                 Int                      @id @default(autoincrement())
+  organizationId     Int
+  routeId            Int
+  stopId             Int
+
+  studentId          Int?
+  studentName        String
+  studentPhoneLast4  String?
+
+  targetDate         DateTime
+  targetTime         String
+
+  status             TemporaryBoardingStatus @default(ACTIVE)
+  createdBy          TemporaryCreatedBy
+
+  createdAt          DateTime                @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  route        Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stop         Stop         @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  student      Student?     @relation(fields: [studentId], references: [id])
+
+  @@index([organizationId, targetDate])
+  @@index([routeId, targetDate])
+  @@index([studentId, targetDate])
 }

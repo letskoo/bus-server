@@ -76,7 +76,61 @@ export class TripService {
       },
     });
 
+    // 🔥 기존 자동화 초기화
     await this.tripAutomationService.initializeTrip(trip.id, routeId);
+
+    // 🔥🔥🔥 임시탑승 자동 삽입 (핵심)
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    const tempList = await this.prisma.temporaryBoarding.findMany({
+      where: {
+        routeId,
+        targetDate: { gte: start, lte: end },
+        status: 'ACTIVE',
+      },
+      orderBy: { targetTime: 'asc' },
+    });
+
+    for (const t of tempList) {
+      // studentId 있으면 기존학생
+      if (t.studentId) {
+        await this.prisma.boardingLog.create({
+          data: {
+            studentId: t.studentId,
+            routeId: routeId,
+            stopId: t.stopId,
+            tripId: trip.id,
+            status: 'SKIPPED',
+            mode: 'AUTO',
+          },
+        });
+      } else {
+        // 🔥 이름만 있는 임시학생 → 가짜 student 생성
+        const tempStudent = await this.prisma.student.create({
+          data: {
+            organizationId: route.organizationId,
+            name: `${t.studentName}(임시)`,
+            parentPhone: '00000000000',
+            stopId: t.stopId,
+          },
+        });
+
+        await this.prisma.boardingLog.create({
+          data: {
+            studentId: tempStudent.id,
+            routeId: routeId,
+            stopId: t.stopId,
+            tripId: trip.id,
+            status: 'SKIPPED',
+            mode: 'AUTO',
+          },
+        });
+      }
+    }
 
     return trip;
   }

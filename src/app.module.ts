@@ -12,6 +12,7 @@ import { WebModule } from './web/web.module';
 import { BoardingModule } from './boarding/boarding.module';
 import { ArrivalModule } from './arrival/arrival.module';
 import { PointsModule } from './points/points.module';
+import { TemporaryModule } from './temporary/temporary.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PointsModule } from './points/points.module';
     BoardingModule,
     ArrivalModule,
     PointsModule,
+    TemporaryModule,
   ],
 })
 export class AppModule {}
