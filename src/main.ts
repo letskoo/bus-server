@@ -8,9 +8,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: '*',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: '*',
+    origin: true,
+    credentials: true,
   });
 
   app.useGlobalFilters(new GlobalExceptionFilter());
@@ -20,4 +19,4 @@ async function bootstrap() {
   await app.listen(port);
 }
 
-void bootstrap();
+bootstrap();
