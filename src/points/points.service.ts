@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class PointsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async getBalance(organizationId: number) {
     const org = await this.prisma.organization.findUnique({
@@ -17,7 +21,7 @@ export class PointsService {
   async adjust(organizationId: number, amount: number, reason: string) {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { points: true },
+      select: { id: true, name: true, points: true },
     });
     if (!org) throw new NotFoundException('Organization not found');
 
@@ -40,6 +44,14 @@ export class PointsService {
         reason,
       },
     });
+
+    // 🔥 충전일 경우 → 원장 충전완료 알림
+    if (amount > 0) {
+      await this.notificationService.sendChargeApproved({
+        organizationName: updated.name,
+        amount,
+      });
+    }
 
     return updated;
   }

@@ -23,6 +23,7 @@ model Organization {
   notificationLog NotificationLog[]
   shareTokens     ShareToken[]
   driverConsents  DriverConsent[]
+  chargeRequests  ChargeRequest[]
 }
 
 model Bus {
@@ -294,4 +295,18 @@ model DriverConsent {
 
   @@index([organizationId, createdAt])
   @@index([driverId, createdAt])
+}
+
+model ChargeRequest {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  amount         Int
+  depositor      String
+  status         String   @default("PENDING")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
 }

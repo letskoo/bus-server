@@ -21,7 +21,7 @@ export class TripService {
     if (v === 'PICKUP') return TripType.PICKUP;
     if (v === 'DROPOFF') return TripType.DROPOFF;
 
-    throw new BadRequestException('type must be one of: GO, RETURN, PICKUP, DROPOFF');
+    throw new BadRequestException('type must be GO | RETURN | PICKUP | DROPOFF');
   }
 
   private last4(phone: string) {
@@ -30,47 +30,49 @@ export class TripService {
   }
 
   async start(routeId: number, type: string) {
-    if (!routeId) throw new BadRequestException('routeId is required');
+    if (!routeId) throw new BadRequestException('routeId required');
 
     const tripType = this.mapType(type);
 
     const route = await this.prisma.route.findUnique({
       where: { id: routeId },
-      select: { organizationId: true, driverId: true },
+      include: {
+        driver: true,
+        stops: { orderBy: { orderNo: 'asc' }, take: 1 },
+      },
     });
 
-    if (!route?.organizationId) {
-      throw new BadRequestException('invalid routeId (cannot resolve organizationId)');
-    }
+    if (!route) throw new BadRequestException('route not found');
+    if (!route.organizationId) throw new BadRequestException('organization missing');
+    if (!route.driverId) throw new BadRequestException('driver not assigned');
 
-    if (!route.driverId) {
-      throw new BadRequestException('no driver assigned to this route');
-    }
-
-    const driver = await this.prisma.driver.findUnique({
-      where: { id: route.driverId },
-      select: { status: true },
-    });
-
-    if (!driver || driver.status !== DriverStatus.ACTIVE) {
-      throw new BadRequestException('driver not consented/active');
+    if (!route.driver || route.driver.status !== DriverStatus.ACTIVE) {
+      throw new BadRequestException('driver not active');
     }
 
     const exists = await this.prisma.trip.findFirst({
-      where: { routeId, type: tripType, status: TripStatus.RUNNING },
+      where: {
+        routeId,
+        type: tripType,
+        status: TripStatus.RUNNING,
+      },
       select: { id: true },
     });
 
     if (exists) {
-      throw new ConflictException('Trip already running for this route and type');
+      throw new ConflictException('Trip already running');
     }
+
+    const firstStop = route.stops?.[0]?.id ?? null;
 
     const trip = await this.prisma.trip.create({
       data: {
         organizationId: route.organizationId,
         routeId,
+        busId: route.busId ?? null,
         type: tripType,
         status: TripStatus.RUNNING,
+        currentStopId: firstStop,
       },
     });
 
@@ -80,23 +82,33 @@ export class TripService {
   }
 
   async end(tripId: number) {
+    if (!tripId) throw new BadRequestException('tripId required');
+
     const trip = await this.prisma.trip.findUnique({
       where: { id: tripId },
-      select: { id: true, status: true, routeId: true, organizationId: true },
+      select: {
+        id: true,
+        status: true,
+        routeId: true,
+        organizationId: true,
+      },
     });
+
     if (!trip) throw new BadRequestException('trip not found');
 
     if (trip.status === TripStatus.ENDED) return trip;
 
     const updated = await this.prisma.trip.update({
       where: { id: tripId },
-      data: { status: TripStatus.ENDED, endedAt: new Date() },
+      data: {
+        status: TripStatus.ENDED,
+        endedAt: new Date(),
+      },
     });
 
     const route = await this.prisma.route.findUnique({
       where: { id: trip.routeId },
       select: {
-        driverId: true,
         organization: { select: { ownerPhone: true } },
         driver: { select: { phone: true } },
       },
@@ -120,11 +132,18 @@ export class TripService {
   }
 
   async getActive(routeId: number, type?: string) {
-    if (!routeId) throw new BadRequestException('routeId is required');
+    if (!routeId) throw new BadRequestException('routeId required');
 
-    const where: any = { routeId, status: TripStatus.RUNNING };
+    const where: any = {
+      routeId,
+      status: TripStatus.RUNNING,
+    };
+
     if (type) where.type = this.mapType(type);
 
-    return this.prisma.trip.findFirst({ where });
+    return this.prisma.trip.findFirst({
+      where,
+      orderBy: { startedAt: 'desc' },
+    });
   }
 }

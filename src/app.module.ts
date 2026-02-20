@@ -8,7 +8,10 @@ import { TripModule } from './trip/trip.module';
 import { DriverModule } from './driver/driver.module';
 import { NotificationModule } from './notification/notification.module';
 import { ShareModule } from './share/share.module';
-import { DebugController } from './debug/debug.controller';
+import { WebModule } from './web/web.module';
+import { BoardingModule } from './boarding/boarding.module';
+import { ArrivalModule } from './arrival/arrival.module';
+import { PointsModule } from './points/points.module';
 
 @Module({
   imports: [
@@ -21,7 +24,10 @@ import { DebugController } from './debug/debug.controller';
     DriverModule,
     NotificationModule,
     ShareModule,
+    WebModule,
+    BoardingModule,
+    ArrivalModule,
+    PointsModule,
   ],
-  controllers: [DebugController],
 })
 export class AppModule {}

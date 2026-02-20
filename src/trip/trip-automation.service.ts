@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { StopEventType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
+const ARRIVE_THRESHOLD_M = 30;
+
 @Injectable()
 export class TripAutomationService {
   constructor(private readonly prisma: PrismaService) {}
@@ -28,7 +30,6 @@ export class TripAutomationService {
 
     if (!trip) return null;
 
-    // 🔥 아직 아무 정류장도 안찍힌 경우 → 첫 정류장
     if (!trip.currentStopId) {
       return this.prisma.stop.findFirst({
         where: { routeId },
@@ -43,15 +44,84 @@ export class TripAutomationService {
 
     if (!current) return null;
 
-    // 🔥 현재 정류장 다음 정류장
-    const next = await this.prisma.stop.findFirst({
+    return this.prisma.stop.findFirst({
       where: {
         routeId,
         orderNo: { gt: current.orderNo },
       },
       orderBy: { orderNo: 'asc' },
     });
+  }
 
-    return next;
+  async processLocationUpdate(routeId: number, lat: number, lng: number) {
+    const trip = await this.prisma.trip.findFirst({
+      where: {
+        routeId,
+        status: 'RUNNING',
+      },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    if (!trip) return;
+
+    const nextStop = await this.getNextStop(trip.id, routeId);
+    if (!nextStop) return;
+
+    const dist = this.distanceMeters(
+      lat,
+      lng,
+      nextStop.latitude,
+      nextStop.longitude,
+    );
+
+    if (dist > ARRIVE_THRESHOLD_M) return;
+
+    const exists = await this.prisma.stopEvent.findFirst({
+      where: {
+        tripId: trip.id,
+        stopId: nextStop.id,
+        type: StopEventType.ARRIVE,
+      },
+    });
+
+    if (exists) return;
+
+    await this.prisma.stopEvent.create({
+      data: {
+        tripId: trip.id,
+        stopId: nextStop.id,
+        type: StopEventType.ARRIVE,
+      },
+    });
+
+    await this.prisma.trip.update({
+      where: { id: trip.id },
+      data: { currentStopId: nextStop.id },
+    });
+  }
+
+  private distanceMeters(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ) {
+    const R = 6371000;
+    const dLat = this.toRad(lat2 - lat1);
+    const dLng = this.toRad(lng2 - lng1);
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRad(lat1)) *
+        Math.cos(this.toRad(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  private toRad(v: number) {
+    return (v * Math.PI) / 180;
   }
 }

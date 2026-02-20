@@ -14,5 +14,5 @@ export type NotificationResult = {
   skipped: boolean;
   channel?: 'ALIMTALK' | 'SMS';
   costPoints?: number;
-  reason?: 'DUPLICATE' | 'NO_POINTS' | 'PROVIDER_FAIL';
+  reason?: 'DUPLICATE' | 'NO_POINTS' | 'PROVIDER_FAIL' | 'NO_POINTS_BLOCK';
 };
