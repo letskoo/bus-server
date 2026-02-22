@@ -1,7 +1,10 @@
-import { Body, Controller, Post, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Post, BadRequestException, UseGuards, Req } from '@nestjs/common';
 import { TripService } from '../trip/trip.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { DriverAuthGuard } from './auth/driver-auth.guard';
+
+const BASE_URL = 'https://bus-server-production.up.railway.app';
 
 @Controller('driver')
 export class DriverStartController {
@@ -11,6 +14,7 @@ export class DriverStartController {
     private readonly notificationService: NotificationService,
   ) {}
 
+  // (레거시) routeId 직접 시작
   @Post('start')
   async start(@Body() body: { routeId: number }) {
     const routeId = Number(body.routeId);
@@ -38,10 +42,8 @@ export class DriverStartController {
     });
 
     const students = await this.prisma.student.findMany({
-      where: {
-        stop: { routeId }
-      },
-      select: { parentPhone: true }
+      where: { stop: { routeId } },
+      select: { parentPhone: true },
     });
 
     for (const s of students) {
@@ -52,7 +54,7 @@ export class DriverStartController {
         routeId,
         stopId: 0,
         phone: s.parentPhone,
-        message: `[학원차량] 실시간 위치 확인\nhttp://localhost:3000/share/${token}`,
+        message: `[학원버스] 실시간 위치 확인\n${BASE_URL}/share/${token}`,
         type: 'MANUAL' as any,
       });
     }
@@ -60,16 +62,20 @@ export class DriverStartController {
     return {
       ok: true,
       tripId: trip.id,
-      mapUrl: `http://localhost:3000/share/${token}`,
+      mapUrl: `${BASE_URL}/share/${token}`,
     };
   }
 
-  @Post('stop')
-  async stop(@Body() body: { tripId: number }) {
+  // (앱) 운행 종료 (tripId 필요)
+  @UseGuards(DriverAuthGuard)
+  @Post('stop-trip')
+  async stopTrip(@Body() body: { tripId: number }) {
     const tripId = Number(body.tripId);
     if (!tripId) throw new BadRequestException('tripId required');
 
     await this.tripService.end(tripId);
     return { ok: true };
   }
+
+  // (앱) 스케줄 기반 자동 시작: /driver/start-auto 는 DriverAuthController에서 처리
 }

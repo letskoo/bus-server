@@ -14,16 +14,16 @@ model Organization {
   points    Int      @default(0)
   createdAt DateTime @default(now())
 
-  buses           Bus[]
-  routes          Route[]
-  students        Student[]
-  trips           Trip[]
-  drivers         Driver[]
-  pointTx         PointTransaction[]
-  notificationLog NotificationLog[]
-  shareTokens     ShareToken[]
-  driverConsents  DriverConsent[]
-  chargeRequests  ChargeRequest[]
+  buses              Bus[]
+  routes             Route[]
+  students           Student[]
+  trips              Trip[]
+  drivers            Driver[]
+  pointTx            PointTransaction[]
+  notificationLog    NotificationLog[]
+  shareTokens        ShareToken[]
+  driverConsents     DriverConsent[]
+  chargeRequests     ChargeRequest[]
   temporaryBoardings TemporaryBoarding[]
 }
 
@@ -60,8 +60,22 @@ model Driver {
   routes       Route[]
   shareTokens  ShareToken[]
   consents     DriverConsent[]
+  sessions     DriverSession[]
 
   @@index([organizationId])
+  @@index([phone])
+}
+
+model DriverSession {
+  token       String   @id
+  driverId    Int
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  lastUsedAt  DateTime @default(now())
+
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, expiresAt])
 }
 
 model Route {
@@ -77,16 +91,35 @@ model Route {
   bus            Bus?            @relation(fields: [busId], references: [id])
   driver         Driver?         @relation(fields: [driverId], references: [id])
 
-  stops          Stop[]
-  boardingLogs   BoardingLog[]
-  driverLocation DriverLocation?
-  trips          Trip[]
-  shareTokens    ShareToken[]
-  temporaryBoardings TemporaryBoarding[]
+  stops              Stop[]
+  boardingLogs        BoardingLog[]
+  driverLocation      DriverLocation?
+  trips              Trip[]
+  shareTokens         ShareToken[]
+  temporaryBoardings  TemporaryBoarding[]
+  schedules           RouteSchedule[]
 
   @@index([organizationId])
   @@index([busId])
   @@index([driverId])
+}
+
+enum RouteScheduleType {
+  PICKUP
+  DROPOFF
+}
+
+model RouteSchedule {
+  id        Int      @id @default(autoincrement())
+  routeId   Int
+  type      RouteScheduleType
+  startTime String   // "HH:mm"
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, type, startTime])
 }
 
 model Stop {
@@ -99,12 +132,12 @@ model Stop {
   orderNo   Int
   createdAt DateTime @default(now())
 
-  route        Route         @relation(fields: [routeId], references: [id])
-  students     Student[]
-  boardingLogs BoardingLog[]
-  trips        Trip[]
-  stopEvents   StopEvent[]
-  temporaryBoardings TemporaryBoarding[]
+  route              Route         @relation(fields: [routeId], references: [id])
+  students           Student[]
+  boardingLogs        BoardingLog[]
+  trips              Trip[]
+  stopEvents          StopEvent[]
+  temporaryBoardings  TemporaryBoarding[]
 
   @@index([routeId, orderNo])
 }
