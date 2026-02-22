@@ -13,7 +13,7 @@ import { BoardingModule } from './boarding/boarding.module';
 import { ArrivalModule } from './arrival/arrival.module';
 import { PointsModule } from './points/points.module';
 import { TemporaryModule } from './temporary/temporary.module';
-import { DriverAuthModule } from './driver/auth/driver-auth.module';
+import { DriverAuthModule } from './driver/auth/driver-auth.module'; // ★추가
 
 @Module({
   imports: [
@@ -24,7 +24,6 @@ import { DriverAuthModule } from './driver/auth/driver-auth.module';
     StudentModule,
     TripModule,
     DriverModule,
-    DriverAuthModule, // 🔥 이 줄 추가
     NotificationModule,
     ShareModule,
     WebModule,
@@ -32,6 +31,7 @@ import { DriverAuthModule } from './driver/auth/driver-auth.module';
     ArrivalModule,
     PointsModule,
     TemporaryModule,
+    DriverAuthModule, // ★추가
   ],
 })
 export class AppModule {}
