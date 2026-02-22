@@ -13,6 +13,7 @@ import { BoardingModule } from './boarding/boarding.module';
 import { ArrivalModule } from './arrival/arrival.module';
 import { PointsModule } from './points/points.module';
 import { TemporaryModule } from './temporary/temporary.module';
+import { DriverAuthModule } from './driver/auth/driver-auth.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { TemporaryModule } from './temporary/temporary.module';
     StudentModule,
     TripModule,
     DriverModule,
+    DriverAuthModule, // 🔥 이 줄 추가
     NotificationModule,
     ShareModule,
     WebModule,
