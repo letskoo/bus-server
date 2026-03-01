@@ -28,8 +28,18 @@ export class DriverAuthService {
     });
 
     if (!consent) throw new NotFoundException('consent token not found');
-    if (consent.expiresAt.getTime() < Date.now()) throw new UnauthorizedException('consent token expired');
-    if (consent.status === DriverConsentStatus.REVOKED) throw new UnauthorizedException('consent revoked');
+
+    console.log('DB expiresAt:', consent.expiresAt);
+    console.log('서버 현재시간:', new Date());
+
+    if (consent.expiresAt.getTime() < Date.now()) {
+      console.log('❌ 만료 판정됨');
+      throw new UnauthorizedException('consent token expired');
+    }
+
+    if (consent.status === DriverConsentStatus.REVOKED) {
+      throw new UnauthorizedException('consent revoked');
+    }
 
     if (consent.status !== DriverConsentStatus.ACCEPTED) {
       await this.prisma.driverConsent.update({
@@ -43,7 +53,7 @@ export class DriverAuthService {
     }
 
     const sessionToken = this.newToken();
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30); // 30d
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
 
     await this.prisma.driverSession.create({
       data: {
@@ -62,7 +72,12 @@ export class DriverAuthService {
     return {
       ok: true,
       token: sessionToken,
-      driver: { id: consent.driver.id, name: consent.driver.name, phone: consent.driver.phone, organizationId: consent.driver.organizationId },
+      driver: {
+        id: consent.driver.id,
+        name: consent.driver.name,
+        phone: consent.driver.phone,
+        organizationId: consent.driver.organizationId,
+      },
       organization: consent.organization,
       routes,
     };
@@ -127,11 +142,9 @@ export class DriverAuthService {
     }
 
     if (!best) {
-      // 스케줄이 없으면: 첫 route + PICKUP
       best = { routeId: routes[0].id, type: TripType.PICKUP, diff: 9999 };
     }
 
-    // 이미 동일 route에 RUNNING 있으면 그대로 반환
     const exists = await this.prisma.trip.findFirst({
       where: { routeId: best.routeId, status: TripStatus.RUNNING, type: best.type },
       orderBy: { startedAt: 'desc' },

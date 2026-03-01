@@ -8,36 +8,293 @@ datasource db {
 }
 
 model Organization {
-  id        Int      @id @default(autoincrement())
-  name      String
-  ownerPhone String?
-  points    Int      @default(0)
-  createdAt DateTime @default(now())
-
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  createdAt          DateTime            @default(now())
+  points             Int                 @default(0)
+  ownerPhone         String?
   buses              Bus[]
-  routes             Route[]
-  students           Student[]
-  trips              Trip[]
-  drivers            Driver[]
-  pointTx            PointTransaction[]
-  notificationLog    NotificationLog[]
-  shareTokens        ShareToken[]
-  driverConsents     DriverConsent[]
   chargeRequests     ChargeRequest[]
+  drivers            Driver[]
+  driverConsents     DriverConsent[]
+  notificationLog    NotificationLog[]
+  pointTx            PointTransaction[]
+  routes             Route[]
+  shareTokens        ShareToken[]
+  students           Student[]
   temporaryBoardings TemporaryBoarding[]
+  trips              Trip[]
 }
 
 model Bus {
-  id             Int      @id @default(autoincrement())
+  id             Int          @id @default(autoincrement())
   organizationId Int
   name           String
   plateNumber    String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  routes         Route[]
+  trips          Trip[]
+}
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  routes       Route[]
-  trips        Trip[]
+model Driver {
+  id             Int             @id @default(autoincrement())
+  organizationId Int
+  name           String
+  phone          String
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  status         DriverStatus    @default(PENDING)
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  consents       DriverConsent[]
+  sessions       DriverSession[]
+  routes         Route[]
+  shareTokens    ShareToken[]
+
+  @@index([organizationId])
+  @@index([phone])
+}
+
+model DriverSession {
+  token      String   @id
+  driverId   Int
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  lastUsedAt DateTime @default(now())
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, expiresAt])
+}
+
+model Route {
+  id                 Int                 @id @default(autoincrement())
+  organizationId     Int
+  busId              Int?
+  name               String
+  alertBeforeCnt     Int                 @default(2)
+  createdAt          DateTime            @default(now())
+  driverId           Int?
+  boardingLogs       BoardingLog[]
+  driverLocation     DriverLocation?
+  bus                Bus?                @relation(fields: [busId], references: [id])
+  driver             Driver?             @relation(fields: [driverId], references: [id])
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  schedules          RouteSchedule[]
+  shareTokens        ShareToken[]
+  stops              Stop[]
+  temporaryBoardings TemporaryBoarding[]
+  trips              Trip[]
+
+  @@index([organizationId])
+  @@index([busId])
+  @@index([driverId])
+}
+
+model RouteSchedule {
+  id        Int               @id @default(autoincrement())
+  routeId   Int
+  type      RouteScheduleType
+  startTime String
+  enabled   Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  route     Route             @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, type, startTime])
+}
+
+model Stop {
+  id                 Int                 @id @default(autoincrement())
+  routeId            Int
+  name               String
+  address            String?
+  latitude           Float
+  longitude          Float
+  orderNo            Int
+  createdAt          DateTime            @default(now())
+  boardingLogs       BoardingLog[]
+  route              Route               @relation(fields: [routeId], references: [id])
+  stopEvents         StopEvent[]
+  students           Student[]
+  temporaryBoardings TemporaryBoarding[]
+  trips              Trip[]
+
+  @@index([routeId, orderNo])
+}
+
+model Student {
+  id                 Int                 @id @default(autoincrement())
+  organizationId     Int
+  stopId             Int?
+  name               String
+  parentPhone        String
+  createdAt          DateTime            @default(now())
+  boardings          BoardingLog[]
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  stop               Stop?               @relation(fields: [stopId], references: [id])
+  temporaryBoardings TemporaryBoarding[]
+
+  @@index([organizationId])
+  @@index([stopId])
+}
+
+model BoardingLog {
+  id        Int            @id @default(autoincrement())
+  studentId Int
+  routeId   Int
+  stopId    Int
+  status    BoardingStatus
+  createdAt DateTime       @default(now())
+  tripId    Int?
+  mode      BoardingMode   @default(MANUAL)
+  route     Route          @relation(fields: [routeId], references: [id])
+  stop      Stop           @relation(fields: [stopId], references: [id])
+  student   Student        @relation(fields: [studentId], references: [id])
+  trip      Trip?          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, createdAt])
+  @@index([tripId, stopId, createdAt])
+  @@index([studentId, tripId])
+}
+
+model NotificationLog {
+  id             Int                  @id @default(autoincrement())
+  phone          String
+  message        String
+  type           NotificationType
+  createdAt      DateTime             @default(now())
+  channel        NotificationChannel?
+  costPoints     Int                  @default(0)
+  organizationId Int?
+  routeId        Int?
+  stopId         Int?
+  organization   Organization?        @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([phone, createdAt])
+}
+
+model DriverLocation {
+  id        Int      @id @default(autoincrement())
+  routeId   Int      @unique
+  latitude  Float
+  longitude Float
+  updatedAt DateTime @updatedAt
+  route     Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+}
+
+model Trip {
+  id             Int           @id @default(autoincrement())
+  organizationId Int
+  routeId        Int
+  busId          Int?
+  type           TripType
+  status         TripStatus    @default(RUNNING)
+  startedAt      DateTime      @default(now())
+  endedAt        DateTime?
+  currentStopId  Int?
+  createdAt      DateTime      @default(now())
+  boardingLogs   BoardingLog[]
+  stopEvents     StopEvent[]
+  bus            Bus?          @relation(fields: [busId], references: [id])
+  currentStop    Stop?         @relation(fields: [currentStopId], references: [id])
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  route          Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, status, startedAt])
+}
+
+model StopEvent {
+  id        Int           @id @default(autoincrement())
+  tripId    Int
+  stopId    Int
+  type      StopEventType
+  createdAt DateTime      @default(now())
+  stop      Stop          @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  trip      Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, stopId, type])
+  @@index([tripId, createdAt])
+}
+
+model ShareToken {
+  token          String       @id
+  routeId        Int
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  driverId       Int?
+  organizationId Int
+  driver         Driver?      @relation(fields: [driverId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  route          Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, expiresAt])
+  @@index([organizationId, expiresAt])
+}
+
+model PointTransaction {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  amount         Int
+  balanceAfter   Int
+  reason         String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
+
+model DriverConsent {
+  organizationId Int
+  driverId       Int
+  token          String              @id
+  status         DriverConsentStatus @default(PENDING)
+  expiresAt      DateTime
+  createdAt      DateTime            @default(now())
+  consentedAt    DateTime?
+  revokedAt      DateTime?
+  driver         Driver              @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([driverId, createdAt])
+}
+
+model ChargeRequest {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  amount         Int
+  depositor      String
+  status         String       @default("PENDING")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
+}
+
+model TemporaryBoarding {
+  id                Int                     @id @default(autoincrement())
+  organizationId    Int
+  routeId           Int
+  stopId            Int
+  studentId         Int?
+  studentName       String
+  studentPhoneLast4 String?
+  targetDate        DateTime
+  targetTime        String
+  status            TemporaryBoardingStatus @default(ACTIVE)
+  createdBy         TemporaryCreatedBy
+  createdAt         DateTime                @default(now())
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  route             Route                   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stop              Stop                    @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  student           Student?                @relation(fields: [studentId], references: [id])
+
+  @@index([organizationId, targetDate])
+  @@index([routeId, targetDate])
+  @@index([studentId, targetDate])
 }
 
 enum DriverStatus {
@@ -46,117 +303,9 @@ enum DriverStatus {
   REVOKED
 }
 
-model Driver {
-  id             Int      @id @default(autoincrement())
-  organizationId Int
-  name           String
-  phone          String
-  status         DriverStatus @default(PENDING)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-  routes       Route[]
-  shareTokens  ShareToken[]
-  consents     DriverConsent[]
-  sessions     DriverSession[]
-
-  @@index([organizationId])
-  @@index([phone])
-}
-
-model DriverSession {
-  token       String   @id
-  driverId    Int
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
-  lastUsedAt  DateTime @default(now())
-
-  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
-
-  @@index([driverId, expiresAt])
-}
-
-model Route {
-  id             Int      @id @default(autoincrement())
-  organizationId Int
-  busId          Int?
-  driverId       Int?
-  name           String
-  alertBeforeCnt Int      @default(2)
-  createdAt      DateTime @default(now())
-
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  bus            Bus?            @relation(fields: [busId], references: [id])
-  driver         Driver?         @relation(fields: [driverId], references: [id])
-
-  stops              Stop[]
-  boardingLogs        BoardingLog[]
-  driverLocation      DriverLocation?
-  trips              Trip[]
-  shareTokens         ShareToken[]
-  temporaryBoardings  TemporaryBoarding[]
-  schedules           RouteSchedule[]
-
-  @@index([organizationId])
-  @@index([busId])
-  @@index([driverId])
-}
-
 enum RouteScheduleType {
   PICKUP
   DROPOFF
-}
-
-model RouteSchedule {
-  id        Int      @id @default(autoincrement())
-  routeId   Int
-  type      RouteScheduleType
-  startTime String   // "HH:mm"
-  enabled   Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
-
-  @@index([routeId, type, startTime])
-}
-
-model Stop {
-  id        Int      @id @default(autoincrement())
-  routeId   Int
-  name      String
-  address   String?
-  latitude  Float
-  longitude Float
-  orderNo   Int
-  createdAt DateTime @default(now())
-
-  route              Route         @relation(fields: [routeId], references: [id])
-  students           Student[]
-  boardingLogs        BoardingLog[]
-  trips              Trip[]
-  stopEvents          StopEvent[]
-  temporaryBoardings  TemporaryBoarding[]
-
-  @@index([routeId, orderNo])
-}
-
-model Student {
-  id             Int      @id @default(autoincrement())
-  organizationId Int
-  stopId         Int?
-  name           String
-  parentPhone    String
-  createdAt      DateTime @default(now())
-
-  organization Organization  @relation(fields: [organizationId], references: [id])
-  stop         Stop?         @relation(fields: [stopId], references: [id])
-  boardings    BoardingLog[]
-  temporaryBoardings TemporaryBoarding[]
-
-  @@index([organizationId])
-  @@index([stopId])
 }
 
 enum BoardingStatus {
@@ -170,26 +319,6 @@ enum BoardingMode {
   AUTO
 }
 
-model BoardingLog {
-  id        Int            @id @default(autoincrement())
-  studentId Int
-  routeId   Int
-  stopId    Int
-  tripId    Int?
-  status    BoardingStatus
-  mode      BoardingMode   @default(MANUAL)
-  createdAt DateTime       @default(now())
-
-  student Student @relation(fields: [studentId], references: [id])
-  route   Route   @relation(fields: [routeId], references: [id])
-  stop    Stop    @relation(fields: [stopId], references: [id])
-  trip    Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-
-  @@index([routeId, createdAt])
-  @@index([tripId, stopId, createdAt])
-  @@index([studentId, tripId])
-}
-
 enum NotificationType {
   BEFORE_STOP
   ARRIVED
@@ -200,34 +329,6 @@ enum NotificationType {
 enum NotificationChannel {
   ALIMTALK
   SMS
-}
-
-model NotificationLog {
-  id             Int                  @id @default(autoincrement())
-  organizationId Int?
-  routeId        Int?
-  stopId         Int?
-  phone          String
-  message        String
-  type           NotificationType
-  channel        NotificationChannel?
-  costPoints     Int                  @default(0)
-  createdAt      DateTime             @default(now())
-
-  organization Organization? @relation(fields: [organizationId], references: [id])
-
-  @@index([organizationId, createdAt])
-  @@index([phone, createdAt])
-}
-
-model DriverLocation {
-  id        Int      @id @default(autoincrement())
-  routeId   Int      @unique
-  latitude  Float
-  longitude Float
-  updatedAt DateTime @updatedAt
-
-  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
 }
 
 enum TripType {
@@ -245,107 +346,10 @@ enum StopEventType {
   DEPART
 }
 
-model Trip {
-  id             Int        @id @default(autoincrement())
-  organizationId Int
-  routeId        Int
-  busId          Int?
-  type           TripType
-  status         TripStatus @default(RUNNING)
-  startedAt      DateTime   @default(now())
-  endedAt        DateTime?
-  currentStopId  Int?
-  createdAt      DateTime   @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-  route        Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  bus          Bus?         @relation(fields: [busId], references: [id])
-  currentStop  Stop?        @relation(fields: [currentStopId], references: [id])
-
-  stopEvents   StopEvent[]
-  boardingLogs BoardingLog[]
-
-  @@index([routeId, status, startedAt])
-}
-
-model StopEvent {
-  id        Int           @id @default(autoincrement())
-  tripId    Int
-  stopId    Int
-  type      StopEventType
-  createdAt DateTime      @default(now())
-
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  stop Stop @relation(fields: [stopId], references: [id], onDelete: Cascade)
-
-  @@unique([tripId, stopId, type])
-  @@index([tripId, createdAt])
-}
-
-model ShareToken {
-  token          String   @id
-  organizationId Int
-  routeId        Int
-  driverId       Int?
-  createdAt      DateTime @default(now())
-  expiresAt      DateTime
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  route        Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  driver       Driver?      @relation(fields: [driverId], references: [id])
-
-  @@index([routeId, expiresAt])
-  @@index([organizationId, expiresAt])
-}
-
-model PointTransaction {
-  id             Int      @id @default(autoincrement())
-  organizationId Int
-  amount         Int
-  balanceAfter   Int
-  reason         String
-  createdAt      DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, createdAt])
-}
-
 enum DriverConsentStatus {
   PENDING
   ACCEPTED
   REVOKED
-}
-
-model DriverConsent {
-  token          String             @id
-  organizationId Int
-  driverId       Int
-  status         DriverConsentStatus @default(PENDING)
-  createdAt      DateTime           @default(now())
-  expiresAt      DateTime
-  consentedAt    DateTime?
-  revokedAt      DateTime?
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  driver       Driver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, createdAt])
-  @@index([driverId, createdAt])
-}
-
-model ChargeRequest {
-  id             Int      @id @default(autoincrement())
-  organizationId Int
-  amount         Int
-  depositor      String
-  status         String   @default("PENDING")
-  createdAt      DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, createdAt])
-  @@index([status, createdAt])
 }
 
 enum TemporaryBoardingStatus {
@@ -356,32 +360,4 @@ enum TemporaryBoardingStatus {
 enum TemporaryCreatedBy {
   PARENT
   DIRECTOR
-}
-
-model TemporaryBoarding {
-  id                 Int                      @id @default(autoincrement())
-  organizationId     Int
-  routeId            Int
-  stopId             Int
-
-  studentId          Int?
-  studentName        String
-  studentPhoneLast4  String?
-
-  targetDate         DateTime
-  targetTime         String
-
-  status             TemporaryBoardingStatus @default(ACTIVE)
-  createdBy          TemporaryCreatedBy
-
-  createdAt          DateTime                @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  route        Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  stop         Stop         @relation(fields: [stopId], references: [id], onDelete: Cascade)
-  student      Student?     @relation(fields: [studentId], references: [id])
-
-  @@index([organizationId, targetDate])
-  @@index([routeId, targetDate])
-  @@index([studentId, targetDate])
 }

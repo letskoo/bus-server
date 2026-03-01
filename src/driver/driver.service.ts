@@ -11,7 +11,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { UpdateLocationDto } from './dto/update-location.dto';
-import { randomBytes } from 'crypto';
 import { TripAutomationService } from '../trip/trip-automation.service';
 
 @Injectable()
@@ -34,12 +33,26 @@ export class DriverService {
   async acceptConsent(token: string) {
     if (!token) throw new BadRequestException('token required');
 
-    const row = await this.prisma.driverConsent.findUnique({ where: { token } });
-    if (!row) throw new NotFoundException('consent token not found');
+    const clean = String(token).trim();
+
+    const row = await this.prisma.driverConsent.findFirst({
+      where: {
+        token: clean,
+      },
+    });
+
+    if (!row) {
+      const all = await this.prisma.driverConsent.findMany({
+        select: { token: true },
+      });
+      console.log('DB tokens:', all);
+      console.log('받은 토큰:', clean);
+      throw new NotFoundException('consent token not found');
+    }
 
     await this.prisma.$transaction([
       this.prisma.driverConsent.update({
-        where: { token },
+        where: { token: row.token },
         data: { status: DriverConsentStatus.ACCEPTED, consentedAt: new Date() },
       }),
       this.prisma.driver.update({
@@ -54,15 +67,25 @@ export class DriverService {
   async revokeConsent(token: string) {
     if (!token) throw new BadRequestException('token required');
 
-    const row = await this.prisma.driverConsent.findUnique({
-      where: { token },
+    const clean = String(token).trim();
+
+    const row = await this.prisma.driverConsent.findFirst({
+      where: { token: clean },
       include: { driver: true, organization: true },
     });
-    if (!row) throw new NotFoundException('consent token not found');
+
+    if (!row) {
+      const all = await this.prisma.driverConsent.findMany({
+        select: { token: true },
+      });
+      console.log('DB tokens:', all);
+      console.log('받은 토큰:', clean);
+      throw new NotFoundException('consent token not found');
+    }
 
     await this.prisma.$transaction([
       this.prisma.driverConsent.update({
-        where: { token },
+        where: { token: row.token },
         data: { status: DriverConsentStatus.REVOKED },
       }),
       this.prisma.driver.update({
