@@ -36,19 +36,10 @@ export class DriverService {
     const clean = String(token).trim();
 
     const row = await this.prisma.driverConsent.findFirst({
-      where: {
-        token: clean,
-      },
+      where: { token: clean },
     });
 
-    if (!row) {
-      const all = await this.prisma.driverConsent.findMany({
-        select: { token: true },
-      });
-      console.log('DB tokens:', all);
-      console.log('받은 토큰:', clean);
-      throw new NotFoundException('consent token not found');
-    }
+    if (!row) throw new NotFoundException('consent token not found');
 
     await this.prisma.$transaction([
       this.prisma.driverConsent.update({
@@ -74,14 +65,7 @@ export class DriverService {
       include: { driver: true, organization: true },
     });
 
-    if (!row) {
-      const all = await this.prisma.driverConsent.findMany({
-        select: { token: true },
-      });
-      console.log('DB tokens:', all);
-      console.log('받은 토큰:', clean);
-      throw new NotFoundException('consent token not found');
-    }
+    if (!row) throw new NotFoundException('consent token not found');
 
     await this.prisma.$transaction([
       this.prisma.driverConsent.update({
@@ -100,7 +84,7 @@ export class DriverService {
         routeId: 0,
         stopId: 0,
         phone: row.organization.ownerPhone,
-        message: `${this.last4(row.driver.phone)} 기사 위치공유 해제`,
+        message: `${this.last4(row.driver.phone)} 기사의 위치공유 해제`,
         type: NotificationType.MANUAL,
       });
     }
@@ -119,19 +103,21 @@ export class DriverService {
       throw new BadRequestException('routeId, lat, lng required');
     }
 
+    // ✅ 1) RUNNING trip 여부와 무관하게 "무조건" 위치 저장
+    const location = await this.prisma.driverLocation.upsert({
+      where: { routeId },
+      update: { latitude: lat, longitude: lng },
+      create: { routeId, latitude: lat, longitude: lng },
+    });
+
+    // ✅ 2) RUNNING trip이 있을 때만 자동화/알림 처리
     const trip = await this.prisma.trip.findFirst({
       where: { routeId, status: TripStatus.RUNNING },
       orderBy: { startedAt: 'desc' },
       select: { id: true, organizationId: true },
     });
 
-    if (!trip) return { skipped: true };
-
-    const location = await this.prisma.driverLocation.upsert({
-      where: { routeId },
-      update: { latitude: lat, longitude: lng },
-      create: { routeId, latitude: lat, longitude: lng },
-    });
+    if (!trip) return location;
 
     const before = await this.prisma.stopEvent.count({
       where: { tripId: trip.id, type: StopEventType.ARRIVE },

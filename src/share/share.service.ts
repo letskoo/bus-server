@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DriverService } from '../driver/driver.service';
-import { SHARE_TOKEN_TTL_MINUTES_DEFAULT } from '../notification/notification.constants';
 import { randomBytes } from 'crypto';
 
 @Injectable()
@@ -18,9 +17,7 @@ export class ShareService {
     const dLon = toRad(lon2 - lon1);
     const a =
       Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) ** 2;
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
@@ -40,6 +37,7 @@ export class ShareService {
     return randomBytes(18).toString('base64url');
   }
 
+  // ✅ 토큰 기본: 2030년까지 (사실상 무제한)
   async createToken(routeId: number, ttlMinutes?: number, driverId?: number) {
     const route = await this.prisma.route.findUnique({
       where: { id: routeId },
@@ -47,14 +45,13 @@ export class ShareService {
     });
     if (!route) throw new NotFoundException('Route not found');
 
-    const ttl = Math.max(
-      1,
-      Math.min(120, ttlMinutes ?? SHARE_TOKEN_TTL_MINUTES_DEFAULT),
-    );
-    const expiresAt = new Date(Date.now() + ttl * 60 * 1000);
-
     const token = this.newToken();
     const resolvedDriverId = driverId ?? route.driverId ?? null;
+
+    const expiresAt =
+      ttlMinutes && Number(ttlMinutes) > 0
+        ? new Date(Date.now() + Number(ttlMinutes) * 60 * 1000)
+        : new Date('2030-01-01T00:00:00.000Z');
 
     await this.prisma.shareToken.create({
       data: {
@@ -106,6 +103,7 @@ export class ShareService {
 
     if (!route) throw new NotFoundException('Route not found');
 
+    // ✅ trip 없으면 null로 내려주고, 지도는 location만으로도 동작하게 함
     const trip = await this.prisma.trip.findFirst({
       where: { routeId, status: 'RUNNING' as any },
       orderBy: { startedAt: 'desc' },
@@ -118,14 +116,12 @@ export class ShareService {
       },
     });
 
-    if (!trip) throw new NotFoundException('Running trip not found');
-
     const location = await this.driverService.findLocation(routeId);
 
-    // 🔥 핵심: 현재 정류장 이후 다음 정류장 계산
+    // 다음 정류장 계산( trip 없으면 첫 정류장)
     let nextStop = null;
 
-    if (trip.currentStopId) {
+    if (trip?.currentStopId) {
       const current = await this.prisma.stop.findUnique({
         where: { id: trip.currentStopId },
         select: { orderNo: true },
@@ -133,10 +129,7 @@ export class ShareService {
 
       if (current) {
         nextStop = await this.prisma.stop.findFirst({
-          where: {
-            routeId,
-            orderNo: { gt: current.orderNo },
-          },
+          where: { routeId, orderNo: { gt: current.orderNo } },
           orderBy: { orderNo: 'asc' },
         });
       }
@@ -150,7 +143,6 @@ export class ShareService {
     }
 
     let etaMin = 0;
-
     if (location && nextStop) {
       const dist = this.distanceMeters(
         location.latitude,
@@ -168,8 +160,8 @@ export class ShareService {
         organizationId: route.organizationId,
         stops: route.stops,
       },
-      trip,
-      location,
+      trip: trip ?? null,
+      location: location ?? null,
       nextStop,
       etaMin,
     };
