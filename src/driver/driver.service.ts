@@ -7,6 +7,7 @@ import {
   NotificationType,
   StopEventType,
   TripStatus,
+  TripType,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
@@ -33,10 +34,8 @@ export class DriverService {
   async acceptConsent(token: string) {
     if (!token) throw new BadRequestException('token required');
 
-    const clean = String(token).trim();
-
     const row = await this.prisma.driverConsent.findFirst({
-      where: { token: clean },
+      where: { token: String(token).trim() },
     });
 
     if (!row) throw new NotFoundException('consent token not found');
@@ -58,10 +57,8 @@ export class DriverService {
   async revokeConsent(token: string) {
     if (!token) throw new BadRequestException('token required');
 
-    const clean = String(token).trim();
-
     const row = await this.prisma.driverConsent.findFirst({
-      where: { token: clean },
+      where: { token: String(token).trim() },
       include: { driver: true, organization: true },
     });
 
@@ -92,6 +89,65 @@ export class DriverService {
     return { ok: true };
   }
 
+  // ===================== 운행 시작 =====================
+
+  async startTrip(routeId: number) {
+    routeId = Number(routeId);
+    if (!routeId) throw new BadRequestException('routeId required');
+
+    const route = await this.prisma.route.findUnique({
+      where: { id: routeId },
+      select: { id: true, organizationId: true },
+    });
+
+    if (!route) throw new NotFoundException('route not found');
+
+    const running = await this.prisma.trip.findFirst({
+      where: { routeId, status: TripStatus.RUNNING },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    if (running) {
+      return { ok: true, tripId: running.id, already: true };
+    }
+
+    const trip = await this.prisma.trip.create({
+      data: {
+        routeId,
+        organizationId: route.organizationId,
+        status: TripStatus.RUNNING,
+        startedAt: new Date(),
+        type: TripType.PICKUP,
+      },
+    });
+
+    return { ok: true, tripId: trip.id };
+  }
+
+  // ===================== 운행 종료 =====================
+
+  async stopTrip(routeId: number) {
+    routeId = Number(routeId);
+    if (!routeId) throw new BadRequestException('routeId required');
+
+    const running = await this.prisma.trip.findFirst({
+      where: { routeId, status: TripStatus.RUNNING },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    if (!running) return { ok: true, alreadyStopped: true };
+
+    await this.prisma.trip.update({
+      where: { id: running.id },
+      data: {
+        status: TripStatus.ENDED,
+        endedAt: new Date(),
+      },
+    });
+
+    return { ok: true };
+  }
+
   // ===================== 위치 =====================
 
   async upsertLocation(data: UpdateLocationDto) {
@@ -103,14 +159,12 @@ export class DriverService {
       throw new BadRequestException('routeId, lat, lng required');
     }
 
-    // ✅ 1) RUNNING trip 여부와 무관하게 "무조건" 위치 저장
     const location = await this.prisma.driverLocation.upsert({
       where: { routeId },
       update: { latitude: lat, longitude: lng },
       create: { routeId, latitude: lat, longitude: lng },
     });
 
-    // ✅ 2) RUNNING trip이 있을 때만 자동화/알림 처리
     const trip = await this.prisma.trip.findFirst({
       where: { routeId, status: TripStatus.RUNNING },
       orderBy: { startedAt: 'desc' },
@@ -196,13 +250,13 @@ export class DriverService {
     DriverService.autoConfirmTimers.set(key, t);
   }
 
-  async findLocation(routeId: number) {
+  async getLocation(routeId: number) {
     return this.prisma.driverLocation.findUnique({
       where: { routeId },
     });
   }
 
-  async getLocation(routeId: number) {
+  async findLocation(routeId: number) {
     return this.prisma.driverLocation.findUnique({
       where: { routeId },
     });

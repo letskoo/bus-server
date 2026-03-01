@@ -16,15 +16,26 @@ export class DriverController {
     return this.driverService.getLocation(Number(routeId));
   }
 
-  // ✅ 기사 동의
+  // 기사 동의
   @Post('consent/accept')
   accept(@Body() body: { token: string }) {
     return this.driverService.acceptConsent(body?.token);
   }
 
-  // ✅ 기사 철회
   @Post('consent/revoke')
   revoke(@Body() body: { token: string }) {
     return this.driverService.revokeConsent(body?.token);
+  }
+
+  // 🔥 운행 시작
+  @Post('start')
+  start(@Body() body: { routeId: number }) {
+    return this.driverService.startTrip(body?.routeId);
+  }
+
+  // 🔥 운행 종료
+  @Post('stop')
+  stop(@Body() body: { routeId: number }) {
+    return this.driverService.stopTrip(body?.routeId);
   }
 }

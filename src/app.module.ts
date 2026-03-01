@@ -13,7 +13,8 @@ import { BoardingModule } from './boarding/boarding.module';
 import { ArrivalModule } from './arrival/arrival.module';
 import { PointsModule } from './points/points.module';
 import { TemporaryModule } from './temporary/temporary.module';
-import { DriverAuthModule } from './driver/auth/driver-auth.module'; // ★추가
+import { DriverAuthModule } from './driver/auth/driver-auth.module';
+import { AuthModule } from './auth/auth.module'; // 🔥 카카오 로그인
 
 @Module({
   imports: [
@@ -31,7 +32,8 @@ import { DriverAuthModule } from './driver/auth/driver-auth.module'; // ★추�
     ArrivalModule,
     PointsModule,
     TemporaryModule,
-    DriverAuthModule, // ★추가
+    DriverAuthModule,
+    AuthModule, // 🔥 추가
   ],
 })
 export class AppModule {}
